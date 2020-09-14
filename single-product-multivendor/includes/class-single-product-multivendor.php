@@ -152,14 +152,18 @@ class Single_Product_Multivendor {
 	 */
 	private function define_admin_hooks() {
 		global $current_user;
-				
+		
+		if( !session_id() )
+	  {
+	    session_start();
+	  }
 		$plugin_admin = new Single_Product_Multivendor_Admin( $this->get_plugin_name(), $this->get_version() );
 
 		$this->loader->add_action( 'admin_enqueue_scripts', $plugin_admin, 'enqueue_styles' );
 		$this->loader->add_action( 'admin_enqueue_scripts', $plugin_admin, 'enqueue_scripts' );
-		$this->loader->add_filter('acf/load_field/name=wcfmmp_multi_store',$plugin_admin, 'custom_field_product_multi_vendor');
+		/*$this->loader->add_filter('acf/load_field/name=wcfmmp_multi_store',$plugin_admin, 'custom_field_product_multi_vendor');
 		$this->loader->add_action( 'acf/save_post', $plugin_admin , 'idm_custom_field_product_multi_vendor_save' );
-		$this->loader->add_action( 'woocommerce_process_product_meta', $plugin_admin , 'idm_custom_field_product_multi_vendor_save' );
+		$this->loader->add_action( 'woocommerce_process_product_meta', $plugin_admin , 'idm_custom_field_product_multi_vendor_save' );*/
 		$this->loader->add_filter( 'wcfm_query_vars',$plugin_admin , 'wcfmcsm_query_vars', 50 );
 		$this->loader->add_filter( 'wcfm_endpoints_slug', $plugin_admin , 'wcfm_custom_menus_endpoints_slug' );
 		$this->loader->add_filter( 'wcfm_menus', $plugin_admin , 'wcfmcsm_wcfm_menus', 20 );
@@ -183,7 +187,22 @@ class Single_Product_Multivendor {
 		$this->loader->add_action( 'wp_ajax_nopriv_spmv_assign_all_stores',$plugin_admin, 'assign_all_stores_to_products' );
 
 		//Change arguments to display products on vendor side
-		//$this->loader->add_filter( 'wcfm_products_args', $plugin_admin , 'wcfmcsm_wcfm_show_products', 20 );
+		$this->loader->add_filter( 'wcfm_products_args', $plugin_admin , 'wcfmcsm_wcfm_show_products', 20 );
+		$this->loader->add_filter( 'wcfm_products_actions', $plugin_admin , 'wcfmcsm_wcfm_remove_action_products', 10,2 );
+
+		$this->loader->add_filter( 'woocommerce_add_cart_item_data', $plugin_admin , 'plugin_republic_add_cart_item_data', 60,3);
+
+		//$this->loader->remove_filter( 'woocommerce_get_item_data',  'wcfmmp_sold_by_cart', 50);
+		$this->loader->add_filter( 'woocommerce_get_item_data', $plugin_admin , 'spmv_get_cart_data', 60,2);
+		
+
+		
+
+		//$this->loader->add_action( 'before_wcfmmp_sold_by_label_cart_page',$plugin_admin, 'change_label_on_cart_page',50,2 );
+
+		$this->loader->add_action( 'wp_footer',$plugin_admin, 'check_page_and_store_session' );
+
+
 		
 		
 
@@ -198,11 +217,17 @@ class Single_Product_Multivendor {
 	 * @access   private
 	 */
 	private function define_public_hooks() {
+		
 
 		$plugin_public = new Single_Product_Multivendor_Public( $this->get_plugin_name(), $this->get_version() );
 
 		$this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_styles' );
 		$this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_scripts' );
+		$this->loader->add_action( 'woocommerce_add_order_item_meta',$plugin_public, 'wdm_add_custom_order_line_item_meta',10,2 );
+		$this->loader->add_action( 'woocommerce_checkout_order_processed',$plugin_public , 'spmv_checkout_order_processed', 40, 3 );
+		$this->loader->add_filter( 'wcfm_vendor_store_taxomonies',$plugin_public , 'store_taxonomy_display',20,3);
+		// $this->loader->add_filter( 'woocommerce_product_categories_widget_args',$plugin_public , 'store_taxonomy_display' );
+
 	}
 
 	/**

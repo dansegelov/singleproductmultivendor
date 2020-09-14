@@ -95,110 +95,11 @@ class Single_Product_Multivendor_Admin {
 		 * between the defined hooks and the functions defined in this
 		 * class.
 		 */
-
+		
 		wp_enqueue_script( $this->plugin_name, plugin_dir_url( __FILE__ ) . 'js/single-product-multivendor-admin.js', array( 'jquery' ), $this->version, false );
 
 	}
-	public function custom_field_product_multi_vendor($field){
-		
-		global $WCFM,$post;
-		// reset choices
-		$field['choices'] = array();
-		
-		$vendor_arr = $WCFM->wcfm_vendor_support->wcfm_get_vendor_list();
-		
-		// get the textarea value from options page without any formatting
-		$choices = $vendor_arr;
-		
-		unset($choices['']); 
-		
-		// explode the value so that each line is a new array piece
-		// $choices = explode("\n", $choices);
 
-		
-		// remove any unwanted white space
-		$choices = array_map('trim', $choices);
-
-		
-		// loop through array and add to field 'choices'
-		if( is_array($choices) ) {
-			
-			foreach( $choices as $choice ) {
-				
-				$field['choices'][ $choice ] = $choice;
-				
-			}
-			
-		}
-		
-
-		// return the field
-		return $field;
-		
-	
-		// return the field
-		// return $field;
-		
-		// echo '<div id ="wcfmmp_store_multiproduct_data" class="panel woocommerce_options_panel"><div class="options_group"><p class="form-field _wcfmmp_store_field">';
-		// echo '<label for="wcfmmp_multistore">' . apply_filters( 'wcfm_sold_by_label', '', __( 'Store 2', 'wc-multivendor-marketplace' ) ) . '</label>';
-		// $vendor_arr = $WCFM->wcfm_vendor_support->wcfm_get_vendor_list();
-		// $vendor_id = wcfm_get_vendor_id_by_post( $post->ID );
-		// $WCFM->wcfm_fields->wcfm_generate_form_field( array("wcfmmp_multistore" => array( 'type' => 'select2', 'class' => 'select short', 'options' => $vendor_arr, 'value' => $vendor_id, 'attributes' => array( 'style' => 'width:400px;' ) )
-		// 																									 ) );
-		// echo '</p></div></div>';
-	}
-	function idm_custom_field_product_multi_vendor_save( $product_id ) {
-		global $WCFM, $WCFMmp;
-		// $product_id = $post_id;
-		$wcfmmp_store = get_field('wcfmmp_multi_store', $product_id);
-		// print_r($wcfmmp_store);
-		// exit;
-		$wcfmmp_store = array();
-		foreach ($wcfmmp_store as $key => $value) {
-			$wcfmmp_store[] = $value['ID'];
-	   	}
-		if( $wcfmmp_store ) {
-			$arg = array(
-							'ID' => $product_id,
-							'post_author' => $wcfmmp_store,
-						  );
-			
-			  wp_update_post( $arg );
-			 
-			  $WCFMmp->wcfmmp_vendor->wcfmmp_reset_vendor_taxonomy( $wcfmmp_store, $product_id );
-			  
-			  // Update vendor category list
-			  $pcategories = get_the_terms( $product_id, 'product_cat' );
-			  if( !empty($pcategories) ) {
-				  foreach($pcategories as $pkey => $pcategory) {
-					  $WCFMmp->wcfmmp_vendor->wcfmmp_save_vendor_taxonomy( $wcfmmp_store, $product_id, $pcategory->term_id );
-				  }
-			  }
-			  
-			  // For Variations
-			  $product = wc_get_product( $product_id );
-			  $wcfm_variable_product_types = apply_filters( 'wcfm_variable_product_types', array( 'variable', 'variable-subscription', 'pw-gift-card' ) );
-			  if( in_array( $product->get_type(), $wcfm_variable_product_types ) ) {
-				  foreach ( $product->get_children() as $child_id ) {
-					  $arg = array(
-						  'ID' => $child_id,
-						  'post_author' => $wcfmmp_store,
-					  );
-					  wp_update_post( $arg );
-				  }
-			  }
-		} else {
-			$old_vendor_id = wcfm_get_vendor_id_by_post( $product_id );
-			if( $old_vendor_id && wcfm_is_vendor( $old_vendor_id ) ) {
-				  $arg = array(
-					  'ID' => $product_id,
-					  'post_author' => get_current_user_id(),
-				  );
-				  wp_update_post( $arg );
-			  }
-		}
-		
-	}
 	/**
 	 * WCFM - Custom Menus Query Var
 	 */
@@ -323,6 +224,141 @@ class Single_Product_Multivendor_Admin {
 	    }
 	    // do something with this product
 	}
+
+	public function wcfmcsm_wcfm_remove_action_products($actions, $the_product)
+	{
+		if(in_array('administrator',  wp_get_current_user()->roles)) {
+			return $actions;
+		}
+		$product_id =  $the_product->get_id();
+		if($product_id != '')
+		{
+			$post_author_id = get_post_field( 'post_author', $product_id);
+
+			$current_user_id = get_current_user_id();
+
+			if($post_author_id == '' || $current_user_id == '')
+			 		return $actions;
+			elseif ($post_author_id == $current_user_id)
+				return $actions;
+			else
+				return ''; 
+
+			 
+
+
+
+		}
+			
+		return $actions;
+	}
+
+
+
+	
+	public function spmv_get_cart_data($cart_item_meta = array(), $cart_item)
+	{
+		global $WCFM, $WCFMmp;
+		
+		
+		if( !apply_filters( 'wcfmmp_is_allow_cart_sold_by', true ) ) return $cart_item_meta;
+		
+		if( $WCFMmp->wcfmmp_vendor->is_vendor_sold_by() ) {
+			$product_id = $cart_item['product_id'];
+			if( !$product_id ) {
+				$variation_id 	= sanitize_text_field( $cart_item['variation_id'] );
+				if( $variation_id ) {
+					$product_id = wp_get_post_parent_id( $variation_id );
+				}
+			}
+			$vendor_id = false;
+			if(isset($cart_item[0]['name']) && $cart_item[0]['name'] == 'access_store')
+			{
+				$vendor_id = $cart_item[0]['value'];
+			}
+			/*if($vendor_id == '')
+			{
+				$vendor_id = wcfm_get_vendor_id_by_post( $product_id );
+			}*/
+			
+			if( $vendor_id ) {
+				if( apply_filters( 'wcfmmp_is_allow_sold_by', true, $vendor_id ) && wcfm_vendor_has_capability( $vendor_id, 'sold_by' ) ) {
+					// Check is store Online
+					$is_store_offline = get_user_meta( $vendor_id, '_wcfm_store_offline', true );
+					if ( !$is_store_offline ) {
+						$sold_by_text = $WCFMmp->wcfmmp_vendor->sold_by_label( absint($vendor_id) );
+						//$sold_by_text = 'Store';
+						
+						if( apply_filters( 'wcfmmp_is_allow_sold_by_linked', true ) ) {
+							$store_name = wcfm_get_vendor_store( absint($vendor_id) );
+						} else {
+							$store_name = wcfm_get_vendor_store_name( absint($vendor_id) );
+						}
+						
+						do_action('before_wcfmmp_sold_by_label_cart_page', $vendor_id, $product_id );
+						if( !is_array( $cart_item_meta ) ) $cart_item_meta = (array) $cart_item_meta;
+						$cart_item_meta = array_merge( $cart_item_meta, array( array( 'name' => $sold_by_text, 'value' => $store_name ) ) );
+						do_action('after_wcfmmp_sold_by_label_cart_page', $vendor_id, $product_id );
+					}
+				}
+			}
+		}
+		return $cart_item_meta;
+	}
+
+	public function plugin_republic_add_cart_item_data( $cart_item_data, $product_id, $variation_id ) {
+		 //print_r($cart_item_data);
+		 $post_author_id = get_post_field( 'post_author', $product_id);
+		 if(!empty($post_author_id))
+		 {
+		 	//echo 'test';
+		 	$userdata = get_userdata($post_author_id);
+		 	if(in_array('administrator',  $userdata->roles)) {
+		 		//echo 'test';
+		 		//echo $_SESSION['access_store'];
+				if( isset( $_SESSION['access_store'] ) && $_SESSION['access_store'] != '' ) {
+			 		//$cart_item_data['access_store'] = $_SESSION['access_store'];
+			 		$cart_item_data = array_merge( $cart_item_data, array( array( 'name' => 'access_store', 'value' =>  $_SESSION['access_store'] ) ) );
+			 	}
+			}
+		 }
+		 
+		 //print_r($cart_item_data);
+		 return $cart_item_data;
+	}
+	public function before_wcfmmp_sold_by_label_cart_page( $vendor_id, $product_id ) {
+		 //print_r($cart_item_data);
+	/*	$cartdata = WC()->cart->get_cart();
+		 echo '<pre>';
+		 print_r($cartdata);
+		 exit;*/
+		 $post_author_id = get_post_field( 'post_author', $product_id);
+		 if(!empty($post_author_id))
+		 {
+		 	$userdata = get_userdata($post_author_id);
+		 	if(in_array('administrator',  $userdata->roles)) {
+				if( isset( $_SESSION['access_store'] ) && $_SESSION['access_store'] != '' ) {
+			 		$cart_item_data['access_store'] = $_SESSION['access_store'];
+			 	}
+			}
+		 }
+		 
+		 
+		 return $cart_item_data;
+	}
+
+	public function check_page_and_store_session()
+	{
+		//session_start();
+		if ( wcfmmp_is_store_page() ) {
+      	$store_user = wcfmmp_get_store( get_query_var( 'author' ) );
+
+				if ( $store_user->id ) {
+					$store_id = $store_user->id;
+					$_SESSION['access_store'] = $store_id;
+				}
+		}
+	}
 	public function wcfmcsm_wcfm_show_products($args)
 	{
 		if(isset($_POST['action']) && $_POST['action'] == 'wcfm_ajax_controller')
@@ -330,9 +366,16 @@ class Single_Product_Multivendor_Admin {
 			if(isset($args['author']) && $args['author'] !='')
 			{
 				$user_id = $args['author'];
-				//unset($args['author']);
+				unset($args['author']);
 
 				$args['meta_query'] = array(
+															'relation' => 'OR', // both of below conditions must match
+																array(
+																	'key' => '_spmv_post_author',
+														        'value' => $user_id,
+														        'compare' => '='
+																),
+														array(
 																
 														      'relation' => 'AND', 
 	                                array (
@@ -347,7 +390,8 @@ class Single_Product_Multivendor_Admin {
 															    ),
 															  //),
 														    
-                              );
+                              ),
+													);
 			}
 			//print_r($args);
 			return $args;
@@ -367,13 +411,13 @@ class Single_Product_Multivendor_Admin {
 				$storeids= $_POST['exclude']; 
 			}
 			update_post_meta( $_POST['proid'], '_spmv_exclude_stores', $storeids );
+			exit;
 		}
 	}
 
 	public function assign_all_stores_to_products()
 	{
-		/*print_r($_POST);
-		exit;*/
+		
 		if( isset( $_POST['proid'] ) && !empty( $_POST['proid'] ) ) {
 			
 			$allstores = 'false';
@@ -383,6 +427,7 @@ class Single_Product_Multivendor_Admin {
 				$allstores = 'true'; 
 			}
 			update_post_meta( $_POST['proid'], '_spmv_all_stores', $allstores );
+			exit;
 		}
 	}
 	public function processing() {
@@ -401,7 +446,15 @@ class Single_Product_Multivendor_Admin {
 		if( class_exists('WooCommerce_simple_auction') ) {
 			remove_all_filters( 'pre_get_posts' );
 		}
-		
+		$administrator_arr = array(
+			'role' => 'administrator',
+		);
+		$administrator = get_users($administrator_arr);
+		$users_arr = array();
+		foreach ( $administrator as $administratorid ) {
+			$users_arr[] = $administratorid->ID;
+		}
+		// print_r($users_arr);
 		$args = array(
 							'posts_per_page'   => $length,
 							'offset'           => $offset,
@@ -416,7 +469,7 @@ class Single_Product_Multivendor_Admin {
 							'post_type'        => 'product',
 							'post_mime_type'   => '',
 							'post_parent'      => '',
-							'author'	   => get_current_user_id(),
+							'author__in'	   => $users_arr,
 							'post_status'      => array('draft', 'pending', 'publish', 'private', 'scheduled' ),
 							'suppress_filters' => 0 
 						);
@@ -533,21 +586,30 @@ class Single_Product_Multivendor_Admin {
 		//$args = apply_filters( 'wcfm_products_args', $args );
 		
 		$wcfm_products_array = get_posts( $args );
+		$custom_spma_args = array(
+				'post_type'        => 'product',
+				'post_status'   => $post_status,
+				'posts_per_page' => -1,
+				'suppress_filters' => 0,
+				'author__in'	   => $users_arr,
+				'post_status'      => array('draft', 'pending', 'publish', 'private', 'scheduled' ),
+		);
 		
-		$pro_count = 0;
+		$new_spma_ps = get_posts($custom_spma_args);
+		$pro_count = count($new_spma_ps);
 		$filtered_pro_count = 0;
 		// Get Product Count
-		$current_user_id  = apply_filters( 'wcfm_current_vendor_id', get_current_user_id() );
-		if( !wcfm_is_vendor() ) $current_user_id = 0;
-		$count_products = array();
-		if( isset($_POST['product_status']) && !empty($_POST['product_status']) && ( $_POST['product_status'] != 'any' ) ) {
-			$pro_count = wcfm_get_user_posts_count( $current_user_id, 'product', wc_clean($_POST['product_status']) );
-		} else {
-			$pro_count = wcfm_get_user_posts_count( $current_user_id, 'product', 'publish' );
-			$pro_count += wcfm_get_user_posts_count( $current_user_id, 'product', 'pending' );
-			$pro_count += wcfm_get_user_posts_count( $current_user_id, 'product', 'draft' );
-			$pro_count += wcfm_get_user_posts_count( $current_user_id, 'product', 'private' );
-		}
+		// $current_user_id  = apply_filters( 'wcfm_current_vendor_id', get_current_user_id() );
+		// if( !wcfm_is_vendor() ) $current_user_id = 0;
+		// $count_products = array();
+		// if( isset($_POST['product_status']) && !empty($_POST['product_status']) && ( $_POST['product_status'] != 'any' ) ) {
+		// 	$pro_count = wcfm_get_user_posts_count( $current_user_id, 'product', wc_clean($_POST['product_status']) );
+		// } else {
+		// 	$pro_count = wcfm_get_user_posts_count( $current_user_id, 'product', 'publish' );
+		// 	$pro_count += wcfm_get_user_posts_count( $current_user_id, 'product', 'pending' );
+		// 	$pro_count += wcfm_get_user_posts_count( $current_user_id, 'product', 'draft' );
+		// 	$pro_count += wcfm_get_user_posts_count( $current_user_id, 'product', 'private' );
+		// }
 		
 		// Get Filtered Post Count
 		$filtered_pro_count = $pro_count; 
@@ -719,7 +781,7 @@ class Single_Product_Multivendor_Admin {
 				 $WCFM->wcfm_fields->wcfm_generate_form_field( 
 				 	array("dropdown_vendor_multi" => array( 
 				 		'type' => 'select', 
-				 		'class' => 'select short', 
+				 		'class' => 'select short dropdown_vendor_multi', 
 				 		'options' => $vendor_arr, 
 				 		'value' => $selected, 
 				 		'attributes' => array( 
@@ -740,7 +802,7 @@ class Single_Product_Multivendor_Admin {
 				{
 					$checked = 'checked';
 				}
-				$wcfm_products_json_arr[$index][] =  '<input type="checkbox" '.$checked.' class="wcfm-checkbox bulk_action_checkbox_single" id="assign_to_verndors" name="assign_to_verndors" data-proid="' . $wcfm_products_single->ID . '"  />';
+				$wcfm_products_json_arr[$index][] =  '<input type="checkbox" '.$checked.' class="assign_to_verndors wcfm-checkbox bulk_action_checkbox_single" id="assign_to_verndors" name="assign_to_verndors" data-proid="' . $wcfm_products_single->ID . '"  />';
 				
 				
 				$index++;

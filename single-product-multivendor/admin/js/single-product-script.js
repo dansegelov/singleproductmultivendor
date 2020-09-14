@@ -21,7 +21,7 @@ jQuery(document).ready(function($) {
 				
 			},
 			"complete" : function () {
-				$('#dropdown_vendor_multi').select2();
+				//$('#dropdown_vendor_multi').select2();
 
 				//initiateTip();
 				//if (typeof intiateWCFMuQuickEdit !== 'undefined' && $.isFunction(intiateWCFMuQuickEdit)) //intiateWCFMuQuickEdit();
@@ -32,8 +32,14 @@ jQuery(document).ready(function($) {
 		}
 	} );
 
+	/*$( document.body ).on( 'updated_wcfm-products', function() {
+		$('#dropdown_vendor_multi').each(function() {
+			
+		});
+	});*/
+
 	$( document.body ).on( 'updated_wcfm-products', function() {
-		$('#assign_to_verndors').each(function() {
+		$('.assign_to_verndors').each(function() {
 			$(this).change(function(event) {
 				//event.preventDefault();
 				
@@ -63,7 +69,8 @@ jQuery(document).ready(function($) {
 	}
 
 	$( document.body ).on( 'updated_wcfm-products', function() {
-		$('#dropdown_vendor_multi').each(function() {
+		$('.dropdown_vendor_multi').each(function() {
+			$(this).select2();
 			$(this).change(function(event) {
 				event.preventDefault();
 				
